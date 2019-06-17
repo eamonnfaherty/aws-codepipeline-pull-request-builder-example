@@ -4,12 +4,13 @@ Description: Builds a PR for the given branch
 Parameters:
   Owner:
     Type: String
+    Default: eamonnfaherty
   Repo:
     Type: String
+    Default: aws-codepipeline-pull-request-builder-example
   Branch:
     Type: String
-  OAuthToken:
-    Type: String
+    Default: master
 
 Resources:
   PipelineRole:
@@ -52,12 +53,14 @@ Resources:
         Image: aws/codebuild/python:3.7.1
       Source:
         Type: CODEPIPELINE
+        BuildSpec: pr-builder-buildspec.yaml
+
 
   Webhook:
     Type: 'AWS::CodePipeline::Webhook'
     Properties:
       AuthenticationConfiguration:
-        SecretToken: "{{resolve:secretsmanager:eamonnfaherty/aws-codepipeline-pull-request-builder-example}}"
+        SecretToken: !Sub "{{resolve:secretsmanager:${Owner}/${Repo}}}"
       Filters:
       - JsonPath: "$.ref"
         MatchEquals: "refs/heads/master"
@@ -80,10 +83,10 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: CodeCommit
+            - Name: Source
               ActionTypeId:
                 Category: Source
-                Owner: GitHub
+                Owner: ThirdParty
                 Version: 1
                 Provider: GitHub
               Configuration:
@@ -94,7 +97,6 @@ Resources:
               OutputArtifacts:
                 - Name: Source
               RunOrder: 1
-              RoleArn: !GetAtt PipelineRole.Arn
         - Name: Build
           Actions:
             - Name: Build
