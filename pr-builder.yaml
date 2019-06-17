@@ -57,7 +57,7 @@ Resources:
 
 
   Webhook:
-    Type: 'AWS::CodePipeline::Webhook'
+    Type: AWS::CodePipeline::Webhook
     Properties:
       AuthenticationConfiguration:
         SecretToken: !Sub "{{resolve:secretsmanager:${Owner}/${Repo}}}"
