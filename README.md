@@ -21,7 +21,7 @@ Default: pr-builder-buildspec.yaml
 Description: The name of the buildspec to use from the github repo 
 ### OAuthResourceArn 
 Type: String  
-Description: The Arn of the credentials resource to use.  You can generate an Arn by importing your credentials using:
+Description: The Arn of the credentials resource to use.  You can import your credentials using:
 ``` bash
 aws codebuild import-source-credentials
 ```
@@ -30,9 +30,11 @@ aws codebuild import-source-credentials
 ## Resources
 The list of resources this template creates:
 
-### BuildRole 
+### BuilderRole 
 Type: AWS::IAM::Role 
 Description: The IAM Role used to run the codebuild job.  Customise this if you need add extra permissions. 
+### Policy 
+Type: AWS::IAM::Policy  
 ### BuildProject 
 Type: AWS::CodeBuild::Project  
 
