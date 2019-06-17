@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Builds a PR for the given branch
+
+Parameters:
+  Owner:
+    Type: String
+  Repo:
+    Type: String
+  Branch:
+    Type: String
+  OAuthToken:
+    Type: String
+
+Resources:
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CodePipelineRole
+      Path: /servicecatalog-product-factory/
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: servicecatalog-product-factory-build
+      Description: "Converts the portfolios dir into pipelines"
+      ServiceRole: !GetAtt PipelineRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: linuxContainer
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.7.1
+      Source:
+        Type: CODEPIPELINE
+
+  Webhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: "{{resolve:secretsmanager:eamonnfaherty/aws-codepipeline-pull-request-builder-example}}"
+      Filters:
+      - JsonPath: "$.ref"
+        MatchEquals: "refs/heads/master"
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref Pipeline
+      TargetAction: Source
+      Name: !Sub "${AWS::StackName}-webhook"
+      TargetPipelineVersion: !GetAtt Pipeline.Version
+      RegisterWithThirdParty: 'true'
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt PipelineRole.Arn
+      Name: !Sub "${AWS::StackName}-pipeline"
+      ArtifactStore:
+        Location: !Ref PipelineBucket
+        Type: S3
+      RestartExecutionOnUpdate: true
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: CodeCommit
+              ActionTypeId:
+                Category: Source
+                Owner: GitHub
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref Owner
+                Repo: !Ref Repo
+                Branch: !Ref Branch
+                OAuthToken: "{{resolve:secretsmanager:eamonnfaherty/aws-codepipeline-pull-request-builder-example}}"
+              OutputArtifacts:
+                - Name: Source
+              RunOrder: 1
+              RoleArn: !GetAtt PipelineRole.Arn
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref BuildProject
+              RunOrder: 1
+              InputArtifacts:
+                - Name: Source
+              OutputArtifacts:
+                - Name: Build
