@@ -1,114 +1,78 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Builds a PR for the given branch
+Description: |
+  This sample will create a pull request builder using source code from Github.com and using AWS Codebuild as the CICD
+  tool.
 
 Parameters:
   Owner:
     Type: String
+    Description: The Owner of the github.com repo
     Default: eamonnfaherty
   Repo:
     Type: String
+    Description: The name of the github.com repo
     Default: aws-codepipeline-pull-request-builder-example
-  Branch:
+  BuildSpecFileName:
     Type: String
-    Default: master
+    Description: The name of the buildspec to use from the github repo
+    Default: pr-builder-buildspec.yaml
+  OAuthResourceArn:
+    Description: |
+      The Arn of the credentials resource to use.  You can import your credentials using:
+      ``` bash
+      aws codebuild import-source-credentials
+      ```
+    Type: String
 
 Resources:
-  PipelineRole:
+  BuildRole:
+    Description: The IAM Role used to run the codebuild job.  Customise this if you need add extra permissions.
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CodePipelineRole
-      Path: /servicecatalog-product-factory/
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: "Allow"
             Principal:
               Service:
-                - "codepipeline.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
-          - Effect: "Allow"
-            Principal:
-              Service:
                 - "codebuild.amazonaws.com"
             Action:
               - "sts:AssumeRole"
-
-  PipelineBucket:
-    Type: AWS::S3::Bucket
+      Policies:
+        - PolicyName: "logs"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Actions:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProject}"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProject}:*"
 
   BuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: servicecatalog-product-factory-build
-      Description: "Converts the portfolios dir into pipelines"
-      ServiceRole: !GetAtt PipelineRole.Arn
+      Name: !Sub "${AWS::StackName}-build"
+      ServiceRole: "BuildRole"
       Artifacts:
-        Type: CODEPIPELINE
+        Type: NO_ARTIFACTS
       Environment:
         Type: linuxContainer
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/python:3.7.1
       Source:
-        Type: CODEPIPELINE
-        BuildSpec: pr-builder-buildspec.yaml
-
-
-  Webhook:
-    Type: AWS::CodePipeline::Webhook
-    Properties:
-      AuthenticationConfiguration:
-        SecretToken: !Sub "{{resolve:secretsmanager:${Owner}/${Repo}}}"
-      Filters:
-      - JsonPath: "$.ref"
-        MatchEquals: "refs/heads/master"
-      Authentication: GITHUB_HMAC
-      TargetPipeline: !Ref Pipeline
-      TargetAction: Source
-      Name: !Sub "${AWS::StackName}-webhook"
-      TargetPipelineVersion: !GetAtt Pipeline.Version
-      RegisterWithThirdParty: 'true'
-
-  Pipeline:
-    Type: AWS::CodePipeline::Pipeline
-    Properties:
-      RoleArn: !GetAtt PipelineRole.Arn
-      Name: !Sub "${AWS::StackName}-pipeline"
-      ArtifactStore:
-        Location: !Ref PipelineBucket
-        Type: S3
-      RestartExecutionOnUpdate: true
-      Stages:
-        - Name: Source
-          Actions:
-            - Name: Source
-              ActionTypeId:
-                Category: Source
-                Owner: ThirdParty
-                Version: 1
-                Provider: GitHub
-              Configuration:
-                Owner: !Ref Owner
-                Repo: !Ref Repo
-                Branch: !Ref Branch
-                OAuthToken: "{{resolve:secretsmanager:eamonnfaherty/aws-codepipeline-pull-request-builder-example}}"
-              OutputArtifacts:
-                - Name: Source
-              RunOrder: 1
-        - Name: Build
-          Actions:
-            - Name: Build
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Version: 1
-                Provider: CodeBuild
-              Configuration:
-                ProjectName: !Ref BuildProject
-              RunOrder: 1
-              InputArtifacts:
-                - Name: Source
-              OutputArtifacts:
-                - Name: Build
+        Auth:
+          Type: OAUTH
+          Resource: !Ref OAuthResourceArn
+        Location: !Sub "https://github.com/${Owner}/${Repo}"
+        ReportBuildStatus: true
+        Type: GITHUB
+        BuildSpec: !Ref BuildSpecFileName
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - Type: EVENT
+              Pattern: "PULL_REQUEST_CREATED, PULL_REQUEST_UPDATED, PULL_REQUEST_REOPENED"
