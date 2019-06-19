@@ -21,9 +21,9 @@ Default: pr-builder-buildspec.yaml
 Description: The name of the buildspec to use from the github repo 
 ### OAuthResourceArn 
 Type: String  
-Description: The Arn of the credentials resource to use.  You can import your credentials using:
+Description: The Arn of the credentials resource to use.  You can import your credentials and get the Arn using:
 ``` bash
-aws codebuild import-source-credentials
+aws codebuild import-source-credentials --token <YOUR TOKEN> --server-type GITHUB --auth-type PERSONAL_ACCESS_TOKEN
 ```
  
 
