@@ -18,11 +18,12 @@ Parameters:
     Default: pr-builder-buildspec.yaml
   OAuthResourceArn:
     Description: |
-      The Arn of the credentials resource to use.  You can import your credentials using:
+      The Arn of the credentials resource to use.  You can import your credentials and get the Arn using:
       ``` bash
-      aws codebuild import-source-credentials
+      aws codebuild import-source-credentials --token <YOUR TOKEN> --server-type GITHUB --auth-type PERSONAL_ACCESS_TOKEN
       ```
     Type: String
+    
 
 Resources:
   BuilderRole:
