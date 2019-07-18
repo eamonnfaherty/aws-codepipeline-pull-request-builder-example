@@ -40,4 +40,3 @@ Type: AWS::CodeBuild::Project
 
 ## Outputs
 The list of outputs this template exposes:
-
