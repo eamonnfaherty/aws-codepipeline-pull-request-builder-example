@@ -1,1 +1,28 @@
+version: '0.1'
 
+triggers:
+  push-for-master:
+    build_spec:
+      phases:
+        install:
+          runtime-versions:
+            python: 3.7
+        build:
+          commands:
+            - echo "this is a build"
+    when:
+      action: push
+      to_branch: master
+
+  merge-to-master-simple:
+    build_spec:
+      phases:
+        install:
+          runtime-versions:
+            python: 3.7
+        build:
+          commands:
+            - echo "this is a build"
+    when:
+      action: pull-request
+      to_branch: master
